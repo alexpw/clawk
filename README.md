@@ -23,7 +23,8 @@ I basically see this as part of a larger pipeline, for when you can do something
 `$ clawk [options] [expressions-and-or-files]`
 
 ### Options
-`
+
+```
  Switches                           Default  Desc
  --------                           -------  ----
  -h, --no-help, --help              false    Print this message
@@ -44,7 +45,7 @@ I basically see this as part of a larger pipeline, for when you can do something
  -y, --identity                     []       Used as the initializer value for the -r opt (only); example for a seq of numbers: 0.
 
 The default value applies to the positive version of the switch, rather than the "no-" version.  For example, parallel is disabled by default.
-`
+```
 
 ### Expressions and/or files
 
