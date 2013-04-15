@@ -49,8 +49,8 @@
   (case format-out
     "edn"  identity
     "json" json/encode
-    "csv"  #(csv/write-csv % :separator \,)
-    "tsv"  #(csv/write-csv % :separator \tab)
+    "csv"  #(csv/write-csv *out* [%] :separator \,)
+    "tsv"  #(csv/write-csv *out* [%] :separator \tab)
     "text" identity))
 
 (defn seqable-result
@@ -66,13 +66,10 @@
   [args]
   (cli args
        ["-h" "--help" "Print this message" :flag true]
-       ["-c" "--concat" "Apply concat to the result of the mapper (mapcat)."
+       ["-d" "--debug" "Debug by printing stacktraces from unhandled exceptions and parsed cli options."
         :default false
         :flag true]
-       ["-g" "--debug" "Debug by printing stacktraces from exceptions."
-        :default false
-        :flag true]
-       ["-d" "--delimiter" "Delimiter used to split each line (text only). A string or #\"regex\""
+       ["-s" "--separator" "Separator of the values of each line (text only). A string or #\"regex\"."
         :default nil]
        ["-i" "--format-in" "The input data format (edn, csv, tsv, json, text)"
         :default "edn"
@@ -90,6 +87,9 @@
         :default true
         :flag true]
        ["-k" "--keep-blank" "Keep blank lines"
+        :default false
+        :flag true]
+       ["-c" "--concat" "Apply concat to the result of the mapper (effectively mapcat)."
         :default false
         :flag true]
        ["-f" "--filter" "Filter fn (eval'd). It is supplied a var 'x'; example: '(not (empty? x))'"]
@@ -112,9 +112,7 @@
       (binding [*ns* (create-ns 'user)]
         (refer-clojure)
         ; This allows shorter access to helpful libs, subject to change
-        (require '[cheshire.core :as json]
-                 '[clojure.edn :as edn]
-                 '[clj-http.client :as http]
+        (require '[clj-http.client :as http]
                  '[clojure.string :as string]
                  '[clojure.xml :as xml]
                  '[clojure.zip :as zip])
@@ -140,14 +138,17 @@
                                   (pst e 100))
                                 xs))
 
+
                 reducer   (if (:reducer opts)
-                              (partial reduce
-                                       (eval `(fn [~'xs ~'x]
-                                                ~(try
-                                                   (read-string (:reducer opts))
-                                                   (catch Exception e
-                                                     (reduce-ex e ~'xs ~'x)))))
-                                       (:identity opts))
+                              (let [user-r-fn (eval `(fn [~'xs ~'x]
+                                                      ~(read-string (:reducer opts))))]
+                                (partial reduce
+                                         (fn [xs x]
+                                           (try
+                                             (user-r-fn xs x)
+                                             (catch Exception e
+                                               (reduce-ex e xs x))))
+                                         (:identity opts)))
                               (partial remove nil?))
 
                 printer   (if (= (:format-out opts) "edn")
@@ -163,12 +164,15 @@
 
                 map-fn    (if (:parallel opts) pmap map)
 
+
                 mapper    (if (:mapper opts)
-                              (eval `(fn [~'x]
-                                      ~(try
-                                         (read-string (:mapper opts))
-                                         (catch Exception e
-                                           (map-ex e ~'x)))))
+                              (let [user-m-fn (eval `(fn [~'x]
+                                                      ~(read-string (:mapper opts))))]
+                                (fn [x]
+                                  (try
+                                    (user-m-fn x)
+                                    (catch Exception e
+                                      (map-ex e x)))))
                               identity)
 
                 filterer  (if (:filter opts)
@@ -189,7 +193,7 @@
                 blanker   (if (:keep-blank opts) identity #(when-not (= "" %) %))
                 cleaner   (if (:keep-blank opts) identity (partial remove nil?))
 
-                ;; some-real-fn provides short-circuiting and will skip over identity placeholders
+                ;; some-real-fn provides short-circuiting and will skip identity placeholders
                 handler   #(m/some-real-fn-> % trimmer blanker decoder filterer mapper)
                 ]
 
@@ -200,7 +204,7 @@
                                               (seqable-result reducer))]
               (m/some-real-fn-> x encoder printer)))
 
-            (flush)
+          (flush)
 
           (when (:parallel opts) (shutdown-agents))
 

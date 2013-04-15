@@ -8,7 +8,7 @@ Pros:
 
 * Full power for clojure at your disposal without learning awk.
 * Doing the `reader/line-seq/doseq/split/print` dance in Clojure is tedious.
-* If you happen to have files where each record is in EDN, awk and friends don't help.
+* If you happen to have files where each record is in EDN or JSON, awk and friends don't help.
 
 Cons:
 
@@ -74,7 +74,7 @@ You have the following available (subject to change):
 
 ## Examples
 
-Each line of stdin is interpreted by default as "edn" (not as "text"). There are some other default options enabled, but mostly, clawk will function as a pass-through, by using identity functions instead of your custom code.
+Each line of stdin is interpreted by default as "edn" (not as "text"). There are some other default options enabled, but mostly, clawk will function as a pass-through.  It is easily possible to pipe the EDN output from clawk into another call
 
 ```
 $ seq 1 3 | clawk
@@ -89,20 +89,20 @@ So, in affect, what is being ran if no args are specified is:
 $ seq 1 3 | clawk -m '(identity x)'
 ```
 
-*of course you could just use `x` and omit `identity`*
+However, clawk optimizes this by skipping identity placeholder functions.
 
 ### Data Formats
 
 As was said, each line of STDIN is interpreted as "edn" by default, but "json", "csv", "tsv", and "text" are available.  You can choose both an input (-i) and an output (-o).  The output is also defaulted to "edn", but can be overridden.
 
 ```
-$ echo -e '1\n2\n3\n' | clawk -i 'edn' -o 'edn' -m '(* x x)'
+$ echo -e '1\n2\n3\n' | clawk -m '(* x x)'
 1
 4
 9
 ```
 
-This is pretty nice when you have a Clojure map on each line. `x` becomes your map and is easy to work with.  Notice that if nil is returned from the mapper (the :404 map), then it is considered blankd and is filtered out by default.
+This is pretty nice when you have a Clojure map on each line. `x` becomes your map and is easy to work with.  Notice that if nil is returned from the mapper (the :404 map), then it is considered blank and is filtered out by default.
 
 ```
 $ echo -e '{:name "joe"}\n{:404 "skip me"}\n{:name "alex"}' | clawk -m '(:name x)'
@@ -121,12 +121,14 @@ $ echo -e '{:name "joe"}\n{:name "alex"}' | clawk -o json
 Or take in a csv and convert it do edn:
 
 ```
-$ echo -e '1,2,3\na,b,c\n3,4,5\nd,e,f' | clawk -i 'csv' -o 'edn'
+$ echo -e '1,2,3\na,b,c\n3,4,5\nd,e,f' | clawk -i csv
 ["1" "2" "3"]
 ["a" "b" "c"]
 ["3" "4" "5"]
 ["d" "e" "f"]
 ```
+
+Note, the reason numbers are quoted, is because each cell of a csv is interpreted as a string and so edn is representing it correctly.
 
 ### Mapping
 Your mapper fn is just like a clojure map.  The only thing special about it is a special var `x` to represent the argument.
@@ -161,11 +163,22 @@ $ echo -e "a\nb\nc" | clawk -r '(+ xs 1)' -y 0
 3
 ```
 ```
-$ seq 1 4 | clawk -r '(+ xs x)' -y 0 -m '(* x x)'
+$ seq 1 4 | clawk -m '(* x x)' -r '(+ xs x)' -y 0
 30
 ```
+Remove duplicates from a list of strings.
+```
+echo -e "cat\ndog\nsnake\ncat\ndog" | clawk -r '(conj xs x)' -y '#{}'
+#{snake dog cat}
+```
+Or create an index out of a csv.
+```
+echo -e "1,foo\n2,bar\n1,sha\n2,zam" | clawk -i csv -r '(assoc xs (first x) (conj (get xs (first x) #{}) (second x)))' -y {}
+{"2" #{"zam" "bar"}, "1" #{"foo" "sha"}}
+```
+You could then save that in a file and load it in to another job, after modifying the file to make it a proper def.
 
-### Delimiter
+##Delimiter
 
 If you use the "text" input format, you may specify a delimiter with `-d`, then each line is split and `x` is bound to the resulting vector:
 
