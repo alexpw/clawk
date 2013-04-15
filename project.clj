@@ -1,4 +1,4 @@
-(defproject clawk "0.1.1-SNAPSHOT"
+(defproject clawk "0.1.2-SNAPSHOT"
   :description "Kinda like awk, but Clojure"
   :url "http://github.com/daveray/clawk"
   :license {:name "Eclipse Public License"
