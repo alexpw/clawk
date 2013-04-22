@@ -1,4 +1,4 @@
-NOTE: This fork largely deviates from the original.
+NOTE: This fork largely deviates from the original with an expanded feature set.  However, that makes it less stable, though it works for my purposes.
 
 # clawk
 
@@ -18,6 +18,14 @@ Cons:
 
 I basically see this as part of a larger pipeline, for when you can do something easier with clawk than with `sed`, `grep`, `cut`, `tr`, `wc`, and all the others, especially when you need to manipulate edn/json/etc.
 
+## Flow
+
+Clawk is itself a pipeline of operations, all of which are optional:
+
+`trim decode filter mapper (remove nil?) concat reducer encoder printer`
+
+You can opt it to these steps by providing a `--mapper` or enabling `--concat`, for example, but by default, clawk will do as little work as it can.
+
 ## Usage
 
 `$ clawk [options] [expressions-and-or-files]`
@@ -28,15 +36,15 @@ I basically see this as part of a larger pipeline, for when you can do something
  Switches                           Default  Desc
  --------                           -------  ----
  -h, --no-help, --help              false    Print this message
- -c, --no-concat, --concat          false    Apply concat to the result of the mapper (mapcat).
- -g, --no-debug, --debug            false    Debug by printing stacktraces from exceptions.
- -d, --delimiter                             Delimiter used to split each line (text only). A string or #"regex"
+ -d, --no-debug, --debug            false    Debug by printing stacktraces from unhandled exceptions and parsed cli options.
+ -s, --separator                             Separator of the values of each line (text only). A string or #"regex".
  -i, --format-in                    edn      The input data format (edn, csv, tsv, json, text)
  -o, --format-out                   edn      The output data format (edn, csv, tsv, json, text)
  -n, --no-new-lines, --new-lines    true     Whether to emit new-lines after each line of output.
  -p, --no-parallel, --parallel      false    Parallelized processing (pmap instead of map).
  -t, --no-trim, --trim              true     Trim each line before decoding.
  -k, --no-keep-blank, --keep-blank  false    Keep blank lines
+ -c, --no-concat, --concat          false    Apply concat to the result of the mapper (effectively mapcat).
  -f, --filter                                Filter fn (eval'd). It is supplied a var 'x'; example: '(not (empty? x))'
  -m, --mapper                                Mapper fn (eval'd). It is supplied a var 'x'; example: '(inc x)'
  -r, --reducer                               Reducer fn (eval'd). It is supplied vars 'xs' and 'x'; example: '(+ xs x)'
@@ -51,7 +59,7 @@ The default value applies to the positive version of the switch, rather than the
 
 An optional mixed list of additional expessions and files can be evaled in to clawk *before* it processes the STDIN, allowing you to reuse your functions and code moslty in an editor, rather than in the terminal (highly recommended).
 
-`$ clawk '(def counter (atom 0))'
+`$ clawk '(def counter (atom 0))'`
 
 This initializes an atom that is now available in the filter/map/reduce steps.
 
@@ -74,7 +82,7 @@ You have the following available (subject to change):
 
 ## Examples
 
-Each line of stdin is interpreted by default as "edn" (not as "text"). There are some other default options enabled, but mostly, clawk will function as a pass-through.  It is easily possible to pipe the EDN output from clawk into another call
+Each line of stdin is interpreted by default as "edn" (not as "text"). There are some other default options enabled, but mostly, clawk will function as a pass-through.  It is easily possible to pipe the EDN output from clawk into another call to clawk or to somewhere else.
 
 ```
 $ seq 1 3 | clawk
@@ -88,8 +96,6 @@ So, in affect, what is being ran if no args are specified is:
 ```
 $ seq 1 3 | clawk -m '(identity x)'
 ```
-
-However, clawk optimizes this by skipping identity placeholder functions.
 
 ### Data Formats
 
